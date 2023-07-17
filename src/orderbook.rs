@@ -29,14 +29,6 @@ impl OrderBook {
         }
     }
 
-    pub fn place(&mut self, order: Order) {
-        if order.side == Side::Buy {
-            self.place_buy(order);
-        } else {
-            self.place_sell(order);
-        }
-    }
-
     pub fn buy_orders(&self) -> usize {
         self.buys.len()
     }
@@ -44,81 +36,55 @@ impl OrderBook {
         self.sells.len()
     }
 
-    // TODO: optimize so we don't have to remove
-    // and replace on heap each time
-    fn place_buy(&mut self, mut order: Order) {
-        assert!(order.side == Side::Buy);
+    pub fn place(&mut self, mut order: Order) {
+        let (book, other_book) = match order.side {
+            Side::Buy => (&mut self.buys, &mut self.sells),
+            Side::Sell => (&mut self.sells, &mut self.buys),
+        };
+
         loop {
             if order.size == 0 {
                 break;
             }
-            let top = self.sells.pop();
-            if top.is_none() {
+            let top_order = other_book.peek();
+            if top_order.is_none() {
                 break;
             }
-            let mut top_order = top.unwrap();
-            if top_order.price > order.price {
-                self.sells.push(top_order);
+            let liquidity_unavailable = match order.side {
+                Side::Buy => top_order.unwrap().price > order.price,
+                Side::Sell => top_order.unwrap().price < order.price,
+            };
+            if liquidity_unavailable {
                 break;
             }
-            let size_matched = top_order.size.min(order.size);
-            top_order.size -= size_matched;
+            let size_matched = top_order.unwrap().size.min(order.size);
+
+            other_book.peek_mut().unwrap().size -= size_matched;
             order.size -= size_matched;
 
+            let top_order = other_book.peek().unwrap();
+
+            let (from, to) = match order.side {
+                Side::Sell => (order.creator.clone(), top_order.creator.clone()),
+                Side::Buy => (top_order.creator.clone(), order.creator.clone()),
+            };
+
             self.transactions.push(Transaction {
-                from: top_order.creator.clone(),
-                to: order.creator.clone(),
+                from,
+                to,
                 security: self.security.clone(),
                 size: size_matched,
                 price: top_order.price,
                 ts: utils::now(),
             });
 
-            if top_order.size != 0 {
-                self.sells.push(top_order);
+            if top_order.size == 0 {
+                other_book.pop();
             }
         }
 
         if order.size > 0 {
-            self.buys.push(order);
-        }
-    }
-
-    fn place_sell(&mut self, mut order: Order) {
-        assert!(order.side == Side::Sell);
-        loop {
-            if order.size == 0 {
-                break;
-            }
-            let top = self.buys.pop();
-            if top.is_none() {
-                break;
-            }
-            let mut top_order = top.unwrap();
-            if top_order.price < order.price {
-                self.buys.push(top_order);
-                break;
-            }
-            let size_matched = top_order.size.min(order.size);
-            top_order.size -= size_matched;
-            order.size -= size_matched;
-
-            self.transactions.push(Transaction {
-                from: order.creator.clone(),
-                to: top_order.creator.clone(),
-                security: self.security.clone(),
-                size: size_matched,
-                price: top_order.price,
-                ts: utils::now(),
-            });
-
-            if top_order.size != 0 {
-                self.buys.push(top_order);
-            }
-        }
-
-        if order.size > 0 {
-            self.sells.push(order);
+            book.push(order);
         }
     }
 }

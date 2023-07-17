@@ -25,21 +25,22 @@ impl Eq for Order {}
 
 impl Ord for Order {
     fn cmp(&self, other: &Self) -> Ordering {
-        if self.side == other.side {
-            if self.price != other.price {
-                let cmp = self.price.partial_cmp(&other.price).unwrap();
-                if self.side == Side::Buy {
-                    return cmp;
-                } else {
-                    return cmp.reverse();
-                }
-            }
+        if self.side != other.side {
+            panic!(
+                "Comparing two orders that are not the same side {:?} and {:?}",
+                self, other
+            );
+        }
+
+        if self.price == other.price {
             return other.created_at.cmp(&self.created_at);
         }
-        panic!(
-            "Comparing two orders that are not the same side {:?} and {:?}",
-            self, other
-        );
+
+        let cmp = self.price.partial_cmp(&other.price).unwrap();
+        match self.side {
+            Side::Buy => cmp,
+            Side::Sell => cmp.reverse(),
+        }
     }
 }
 
