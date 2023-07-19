@@ -1,3 +1,4 @@
+use serde::{Deserialize, Serialize};
 use std::{cmp::Ordering, fmt::Display};
 
 #[derive(Debug, PartialEq, Eq)]
@@ -50,7 +51,7 @@ impl PartialOrd for Order {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Transaction {
     pub from: String,
     pub to: String,

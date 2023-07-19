@@ -36,11 +36,13 @@ impl OrderBook {
         self.sells.len()
     }
 
-    pub fn place(&mut self, mut order: Order) {
+    pub fn place(&mut self, mut order: Order) -> &[Transaction] {
         let (book, other_book) = match order.side {
             Side::Buy => (&mut self.buys, &mut self.sells),
             Side::Sell => (&mut self.sells, &mut self.buys),
         };
+
+        let num_transactions = self.transactions.len();
 
         loop {
             if order.size == 0 {
@@ -69,14 +71,15 @@ impl OrderBook {
                 Side::Buy => (top_order.creator.clone(), order.creator.clone()),
             };
 
-            self.transactions.push(Transaction {
+            let t = Transaction {
                 from,
                 to,
                 security: self.security.clone(),
                 size: size_matched,
                 price: top_order.price,
                 ts: utils::now(),
-            });
+            };
+            self.transactions.push(t);
 
             if top_order.size == 0 {
                 other_book.pop();
@@ -86,5 +89,7 @@ impl OrderBook {
         if order.size > 0 {
             book.push(order);
         }
+
+        &self.transactions[num_transactions..]
     }
 }

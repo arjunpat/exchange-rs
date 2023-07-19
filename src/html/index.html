@@ -1,0 +1,50 @@
+<script>
+    let ws = new WebSocket('ws://localhost:8080/ws')
+
+    ws.onmessage = msg => {
+        let data = JSON.parse(msg.data);
+        console.log(data);
+    }
+
+    ws.onopen = () => {
+        ws.send(JSON.stringify({
+            Order: {
+                security: "AAPL",
+                size: 10,
+                price: 121,
+                buy: false
+            }
+        }));
+
+        ws.send(JSON.stringify({
+            Order: {
+                security: "AAPL",
+                size: 10,
+                price: 122,
+                buy: false
+            }
+        }));
+
+        ws.send(JSON.stringify({
+            Order: {
+                security: "AAPL",
+                size: 10,
+                price: 124,
+                buy: false
+            }
+        }));
+
+
+        // setTimeout(() => {
+        //     ws.send(JSON.stringify({
+        //         Order: {
+        //             security: "AAPL",
+        //             size: 100,
+        //             price: 125,
+        //             buy: true
+        //         }
+        //     }));
+        // }, 1000);
+        // ws.close();
+    }
+</script>
