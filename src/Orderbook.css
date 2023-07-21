@@ -1,0 +1,62 @@
+@import url("https: //fonts.googleapis.com/css2?family=Roboto+Mono:wght@300&display=swap");
+
+.order-book {
+    width: 300px;
+    height: 600px;
+    background: rgb(20, 21, 25);
+    font-family: 'Roboto Mono', monospace;
+    overflow-y: auto;
+}
+
+.row {
+    flex: 1 1 0;
+    display: flex;
+    height: 20px;
+    width: 100%;
+    justify-content: space-between;
+    position: relative;
+    font-size: 10pt;
+}
+
+.background-bar {
+    height: 20px;
+    right: 0px;
+    border-top-left-radius: 4px;
+    border-bottom-left-radius: 4px;
+    position: absolute;
+    display: flex;
+}
+
+.numbers {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  color: white;
+  z-index: 0;
+  padding: 10px 10px;
+}
+
+.price {
+  text-align: start;
+}
+
+.volume {
+  text-align: right;
+}
+
+.ask-row > .background-bar {
+  background-color: rgb(79, 0, 7);
+}
+
+.ask-row > .numbers > .price {
+  color: rgb(240, 97, 109);
+}
+
+.bid-row > .background-bar {
+  background-color: rgb(0, 61, 36);
+}
+
+.bid-row > .numbers > .price {
+  color: rgb(39,173,117);
+}

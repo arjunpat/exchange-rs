@@ -11,14 +11,14 @@ pub enum Side {
 pub struct Order {
     pub created_at: u64,
     pub creator: String,
-    pub size: i64,
-    pub price: f64,
+    pub size: u64,
+    pub price: u64,
     pub side: Side,
 }
 
 impl PartialEq for Order {
     fn eq(&self, other: &Self) -> bool {
-        return self.cmp(other) == Ordering::Equal;
+        self.cmp(other) == Ordering::Equal
     }
 }
 
@@ -52,21 +52,20 @@ impl PartialOrd for Order {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Transaction {
+pub struct Trade {
     pub from: String,
     pub to: String,
-    pub security: String,
-    pub size: i64,
-    pub price: f64,
+    pub size: u64,
+    pub price: u64,
     pub ts: u64,
 }
 
-impl Display for Transaction {
+impl Display for Trade {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "{} -> {}: {} of {} @ ${}",
-            self.from, self.to, self.size, self.security, self.price
+            "{} -> {}: {} @ ${}",
+            self.from, self.to, self.size, self.price
         )
     }
 }

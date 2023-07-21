@@ -1,48 +1,61 @@
-use std::collections::BinaryHeap;
+use std::collections::{BinaryHeap, HashMap};
 
 use crate::{
-    order::{Order, Side, Transaction},
+    order::{Order, Side, Trade},
     utils,
 };
 
 pub struct OrderBook {
-    security: String,
-    buys: BinaryHeap<Order>,
-    sells: BinaryHeap<Order>,
-    pub transactions: Vec<Transaction>,
+    bids: BinaryHeap<Order>,
+    asks: BinaryHeap<Order>,
+    pub trades: Vec<Trade>,
 }
 
 impl OrderBook {
-    pub fn new(security: &str) -> OrderBook {
-        return OrderBook {
-            security: security.to_owned(),
-            buys: BinaryHeap::new(),
-            sells: BinaryHeap::new(),
-            transactions: Vec::new(),
-        };
-    }
-
-    pub fn current_price(&self) -> f64 {
-        match self.transactions.last() {
-            Some(transaction) => transaction.price,
-            None => 0.0,
+    pub fn new() -> OrderBook {
+        OrderBook {
+            bids: BinaryHeap::new(),
+            asks: BinaryHeap::new(),
+            trades: Vec::new(),
         }
     }
 
-    pub fn buy_orders(&self) -> usize {
-        self.buys.len()
-    }
-    pub fn sell_orders(&self) -> usize {
-        self.sells.len()
+    pub fn current_price(&self) -> u64 {
+        match self.trades.last() {
+            Some(transaction) => transaction.price,
+            None => 0,
+        }
     }
 
-    pub fn place(&mut self, mut order: Order) -> &[Transaction] {
+    pub fn num_bids(&self) -> usize {
+        self.bids.len()
+    }
+    pub fn num_asks(&self) -> usize {
+        self.asks.len()
+    }
+
+    pub fn get_depth(&self) -> (HashMap<u64, u64>, HashMap<u64, u64>) {
+        // this is super slow but good enough for now
+        let mut bids = HashMap::new();
+        self.bids.iter().for_each(|o| {
+            *bids.entry(o.price).or_insert(0) += o.size;
+        });
+
+        let mut asks = HashMap::new();
+        self.asks.iter().for_each(|o| {
+            *asks.entry(o.price).or_insert(0) += o.size;
+        });
+
+        (bids, asks)
+    }
+
+    pub fn place(&mut self, mut order: Order) -> &[Trade] {
         let (book, other_book) = match order.side {
-            Side::Buy => (&mut self.buys, &mut self.sells),
-            Side::Sell => (&mut self.sells, &mut self.buys),
+            Side::Buy => (&mut self.bids, &mut self.asks),
+            Side::Sell => (&mut self.asks, &mut self.bids),
         };
 
-        let num_transactions = self.transactions.len();
+        let num_transactions = self.trades.len();
 
         loop {
             if order.size == 0 {
@@ -71,15 +84,14 @@ impl OrderBook {
                 Side::Buy => (top_order.creator.clone(), order.creator.clone()),
             };
 
-            let t = Transaction {
+            let t = Trade {
                 from,
                 to,
-                security: self.security.clone(),
                 size: size_matched,
                 price: top_order.price,
                 ts: utils::now(),
             };
-            self.transactions.push(t);
+            self.trades.push(t);
 
             if top_order.size == 0 {
                 other_book.pop();
@@ -90,6 +102,6 @@ impl OrderBook {
             book.push(order);
         }
 
-        &self.transactions[num_transactions..]
+        &self.trades[num_transactions..]
     }
 }
