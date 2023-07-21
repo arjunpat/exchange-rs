@@ -1,5 +1,5 @@
 # exchange-rs
 
-High performance orderbook matching engine written in Rust with a React.js visualization.
+High-performance orderbook matching engine written in Rust with a React.js visualization.
 
-![til](https://raw.githubusercontent.com/arjunpat/exchange-rs/main/assets/orderbookvisualization.gif)
+<img src="https://github.com/arjunpat/exchange-rs/blob/main/assets/orderbookvisualization.gif" width="200"/>
