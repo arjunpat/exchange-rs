@@ -2,10 +2,11 @@ import './Orderbook.css';
 import exchange from './Socket';
 import { useState } from 'react';
 
-function App() {
+function Orderbook() {
   let [depths, updateDepths] = useState({ asks: [], bids: [] });
   let [tradePrice, updateTradePrice] = useState(0);
   let [spread, updateSpread] = useState(0);
+  let trades = [];
 
   exchange.ondepthschange = depths => {
     let asks = [];
@@ -46,14 +47,13 @@ function App() {
       let spr = asks[asks.length - 1].price - bids[0].price;
       updateSpread(spr.toFixed(2));
     }
-
-
     updateDepths({ bids, asks });
   }
 
-  exchange.ontrade = trade => {
+
+  exchange.addTradeCallback(trade => {
     updateTradePrice((trade.price_cents / 100).toFixed(2));
-  }
+  });
 
   return (
       <div className="order-book">
@@ -93,4 +93,4 @@ function App() {
   );
 }
 
-export default App;
+export default Orderbook;

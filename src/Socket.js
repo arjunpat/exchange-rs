@@ -3,6 +3,8 @@ const WEBSOCKET_URL = 'ws://localhost:8080/ws';
 class Socket {
   constructor(url) {
     this.ws = new WebSocket(url);
+    this.tradeCallbacks = [];
+    this.price_cents = 0;
 
     this.ws.onmessage = msg => {
       const data = JSON.parse(msg.data);
@@ -11,9 +13,7 @@ class Socket {
           this.ondepthschange(data.Depths);
         }
       } else if (data.Trade) {
-        if (this.ontrade) {
-          this.ontrade(data.Trade);
-        }
+        this.ontrade(data.Trade);
       }
     }
 
@@ -25,18 +25,27 @@ class Socket {
         for (let price = 126; price < 150; price++) {
           this.sell("AAPL", 30, price);
         }
+
         setInterval(() => {
-          if (Math.random() > .5) {
-            let size = Math.floor(Math.random() * 20);
-            let price = Math.floor(Math.random() * 30) + 100;
+          let size = validGaussianRandom(20, 10);
+          if (Math.random() > .2) {
+            let price = validGaussianRandom(this.price_cents, 5);
             this.buy("AAPL", size, price);
           } else {
-            let size = Math.floor(Math.random() * 20);
-            let price = Math.floor(Math.random() * 30) + 120;
+            let price = validGaussianRandom(this.price_cents, 5);
             this.sell("AAPL", size, price);
           }
-        }, 10);
+        }, 100);
     }
+  }
+
+  ontrade(trade) {
+    this.tradeCallbacks.forEach(e => e(trade));
+    this.price_cents = trade.price_cents;
+  }
+
+  addTradeCallback(func) {
+    this.tradeCallbacks.push(func);
   }
 
   generateOrder(security, size, price_cents, buy) {
@@ -57,6 +66,18 @@ class Socket {
 }
 
 const socket = new Socket(WEBSOCKET_URL);
+
+function validGaussianRandom(mean = 0, stdev = 1) {
+  return Math.max(Math.round(gaussianRandom(mean, stdev)), 0);
+}
+
+function gaussianRandom(mean = 0, stdev = 1) {
+    const u = 1 - Math.random(); // Converting [0,1) to (0,1]
+    const v = Math.random();
+    const z = Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+    // Transform to the desired mean and standard deviation:
+    return z * stdev + mean;
+}
 
 
 export default socket;

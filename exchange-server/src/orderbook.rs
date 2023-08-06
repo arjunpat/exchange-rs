@@ -20,7 +20,7 @@ impl OrderBook {
         }
     }
 
-    pub fn current_price(&self) -> u64 {
+    pub fn current_price(&self) -> u32 {
         match self.trades.last() {
             Some(transaction) => transaction.price,
             None => 0,
@@ -34,7 +34,7 @@ impl OrderBook {
         self.asks.len()
     }
 
-    pub fn get_depth(&self) -> (HashMap<u64, u64>, HashMap<u64, u64>) {
+    pub fn get_depth(&self) -> (HashMap<u32, u32>, HashMap<u32, u32>) {
         // this is super slow but good enough for now
         let mut bids = HashMap::new();
         self.bids.iter().for_each(|o| {
@@ -49,6 +49,18 @@ impl OrderBook {
         (bids, asks)
     }
 
+    // assume that Order::created_at(ns) is unique
+    pub fn cancel_order(&mut self, creator: String, size: u32, price: u32, side: Side) {
+        // also super slow -> need to find a new data structure
+        let (book, _) = match side {
+            Side::Buy => (&mut self.bids, &mut self.asks),
+            Side::Sell => (&mut self.asks, &mut self.bids),
+        };
+
+        // TODO: should only delete one, but deletes all
+        book.retain(|o| o.creator != creator || o.size != size || o.price != price);
+    }
+
     pub fn place(&mut self, mut order: Order) -> &[Trade] {
         let (book, other_book) = match order.side {
             Side::Buy => (&mut self.bids, &mut self.asks),
@@ -56,6 +68,7 @@ impl OrderBook {
         };
 
         let num_transactions = self.trades.len();
+        let ts = utils::now();
 
         loop {
             if order.size == 0 {
@@ -89,7 +102,7 @@ impl OrderBook {
                 to,
                 size: size_matched,
                 price: top_order.price,
-                ts: utils::now(),
+                ts,
             };
             self.trades.push(t);
 

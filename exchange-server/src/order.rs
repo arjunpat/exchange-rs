@@ -7,12 +7,22 @@ pub enum Side {
     Sell,
 }
 
+impl From<bool> for Side {
+    fn from(b: bool) -> Self {
+        if b {
+            Self::Buy
+        } else {
+            Self::Sell
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct Order {
     pub created_at: u64,
     pub creator: String,
-    pub size: u64,
-    pub price: u64,
+    pub size: u32,
+    pub price: u32,
     pub side: Side,
 }
 
@@ -55,8 +65,8 @@ impl PartialOrd for Order {
 pub struct Trade {
     pub from: String,
     pub to: String,
-    pub size: u64,
-    pub price: u64,
+    pub size: u32,
+    pub price: u32,
     pub ts: u64,
 }
 

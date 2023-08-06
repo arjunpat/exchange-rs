@@ -17,11 +17,11 @@ pub struct Exchange {
     // update connected clients on all events
     broadcast: broadcast::Sender<ServerMsg>,
     // send order to exchange task
-    order_sender: mpsc::Sender<Order>,
+    order_sender: mpsc::Sender<OrderBookMsg>,
     // only for exchange_loop
-    order_receiver: Mutex<mpsc::Receiver<Order>>,
+    order_receiver: Mutex<mpsc::Receiver<OrderBookMsg>>,
     // id counter
-    id_counter: Mutex<u64>,
+    id_counter: Mutex<u32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -31,13 +31,13 @@ enum ServerMsg {
         username: String,
     },
     Trade {
-        price_cents: u64,
-        size: u64,
+        price_cents: u32,
+        size: u32,
         ts: u64,
     },
     Depths {
-        bids: HashMap<u64, u64>,
-        asks: HashMap<u64, u64>,
+        bids: HashMap<u32, u32>,
+        asks: HashMap<u32, u32>,
     },
 }
 
@@ -53,9 +53,25 @@ impl From<ServerMsg> for Message {
 enum ClientMsg {
     // client Order
     Order {
-        size: u64,
-        price_cents: u64,
+        size: u32,
+        price_cents: u32,
         buy: bool,
+    },
+    CancelOrder {
+        size: u32,
+        price_cents: u32,
+        buy: bool,
+    },
+}
+
+#[derive(Debug)]
+enum OrderBookMsg {
+    Order(Order),
+    CancelOrder {
+        size: u32,
+        price_cents: u32,
+        side: Side,
+        creator: String,
     },
 }
 
@@ -74,6 +90,9 @@ impl Exchange {
     }
 
     pub async fn start(&self) {
+        // tokio::select! runs concurrently, but not parallel
+        // which is OK bc these cannot run in parallel
+        // due to shared mutex
         tokio::select! {
             _ = self.exchange_loop() => {}
             _ = self.send_depths_loop() => {}
@@ -97,21 +116,33 @@ impl Exchange {
         let mut order_receiver = self.order_receiver.lock().await;
         let mut orders_received = 0;
 
-        while let Some(order) = order_receiver.recv().await {
+        while let Some(orderbook_msg) = order_receiver.recv().await {
             orders_received += 1;
             if orders_received % 1000 == 0 {
                 println!("Have received {} orders", orders_received);
             }
-            {
-                for t in self.book.lock().await.place(order) {
-                    // can fail when there are no broadcast listeners
-                    let _ = self.broadcast.send(ServerMsg::Trade {
-                        price_cents: t.price,
-                        size: t.size,
-                        ts: t.ts,
-                    });
+            match orderbook_msg {
+                OrderBookMsg::Order(order) => {
+                    for t in self.book.lock().await.place(order) {
+                        let _ = self.broadcast.send(ServerMsg::Trade {
+                            price_cents: t.price,
+                            size: t.size,
+                            ts: t.ts,
+                        });
+                    }
                 }
-            } // essential to release the lock
+                OrderBookMsg::CancelOrder {
+                    size,
+                    price_cents,
+                    side,
+                    creator,
+                } => {
+                    self.book
+                        .lock()
+                        .await
+                        .cancel_order(creator, size, price_cents, side);
+                }
+            }
         }
     }
 
@@ -139,7 +170,9 @@ impl Exchange {
                 msg = socket.recv() => {
                     if let Some(msg) = msg {
                         if let Ok(msg) = msg {
-                            if let Message::Text(text) = msg { self.handle_client_msg(&username, text).await? }
+                            if let Message::Text(text) = msg {
+                                self.handle_client_msg(&username, text).await?
+                            }
                         } else {
                             println!("Client disconnected!!!!");
                             break;
@@ -170,7 +203,7 @@ impl Exchange {
                     return Ok(());
                 }
                 let order = Order {
-                    side: if buy { Side::Buy } else { Side::Sell },
+                    side: buy.into(),
                     created_at: utils::now(),
                     creator: username.to_owned(),
                     size,
@@ -178,7 +211,25 @@ impl Exchange {
                 };
 
                 // send to exchange tokio task/thread
-                self.order_sender.send(order).await?;
+                self.order_sender.send(OrderBookMsg::Order(order)).await?;
+            }
+            ClientMsg::CancelOrder {
+                size,
+                price_cents,
+                buy,
+            } => {
+                if size == 0 {
+                    return Ok(());
+                }
+
+                self.order_sender
+                    .send(OrderBookMsg::CancelOrder {
+                        size,
+                        price_cents,
+                        side: buy.into(),
+                        creator: username.to_owned(),
+                    })
+                    .await?;
             }
         }
 
