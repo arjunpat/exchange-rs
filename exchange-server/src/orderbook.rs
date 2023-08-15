@@ -1,4 +1,4 @@
-use std::collections::{BinaryHeap, HashMap};
+use std::collections::{BTreeMap, BinaryHeap};
 
 use crate::{
     order::{Order, Side, Trade},
@@ -8,113 +8,76 @@ use crate::{
 pub struct OrderBook {
     bids: BinaryHeap<Order>,
     asks: BinaryHeap<Order>,
-    pub trades: Vec<Trade>,
 }
 
 impl OrderBook {
-    pub fn new() -> OrderBook {
+    pub fn new() -> Self {
         OrderBook {
             bids: BinaryHeap::new(),
             asks: BinaryHeap::new(),
-            trades: Vec::new(),
         }
     }
 
-    pub fn current_price(&self) -> u32 {
-        match self.trades.last() {
-            Some(transaction) => transaction.price,
-            None => 0,
-        }
+    pub fn place_market(&mut self, mut order: Order) {
+        let (book, other_book) = match order.side() {
+            Side::Buy => (&mut self.bids, &mut self.asks),
+            Side::Sell => (&mut self.asks, &mut self.bids),
+        };
     }
 
-    pub fn num_bids(&self) -> usize {
-        self.bids.len()
-    }
-    pub fn num_asks(&self) -> usize {
-        self.asks.len()
-    }
-
-    pub fn get_depth(&self) -> (HashMap<u32, u32>, HashMap<u32, u32>) {
-        // this is super slow but good enough for now
-        let mut bids = HashMap::new();
-        self.bids.iter().for_each(|o| {
-            *bids.entry(o.price).or_insert(0) += o.size;
-        });
-
-        let mut asks = HashMap::new();
-        self.asks.iter().for_each(|o| {
-            *asks.entry(o.price).or_insert(0) += o.size;
-        });
-
-        (bids, asks)
-    }
-
-    // assume that Order::created_at(ns) is unique
-    pub fn cancel_order(&mut self, creator: String, size: u32, price: u32, side: Side) {
-        // also super slow -> need to find a new data structure
-        let (book, _) = match side {
+    pub fn place_limit(&mut self, mut order: Order) {
+        let (book, other_book) = match order.side() {
             Side::Buy => (&mut self.bids, &mut self.asks),
             Side::Sell => (&mut self.asks, &mut self.bids),
         };
 
-        // TODO: should only delete one, but deletes all
-        book.retain(|o| o.creator != creator || o.size != size || o.price != price);
-    }
+        // all_or_none is not yet supported for limit orders
+        assert!(!order.all_or_none());
 
-    pub fn place(&mut self, mut order: Order) -> &[Trade] {
-        let (book, other_book) = match order.side {
-            Side::Buy => (&mut self.bids, &mut self.asks),
-            Side::Sell => (&mut self.asks, &mut self.bids),
-        };
-
-        let num_transactions = self.trades.len();
         let ts = utils::now();
 
         loop {
-            if order.size == 0 {
+            if order.quantity() == 0 {
                 break;
             }
             let top_order = other_book.peek();
             if top_order.is_none() {
                 break;
             }
-            let liquidity_unavailable = match order.side {
-                Side::Buy => top_order.unwrap().price > order.price,
-                Side::Sell => top_order.unwrap().price < order.price,
+            let liquidity_unavailable = match order.side() {
+                Side::Buy => top_order.unwrap().price() > order.price(),
+                Side::Sell => top_order.unwrap().price() < order.price(),
             };
             if liquidity_unavailable {
                 break;
             }
-            let size_matched = top_order.unwrap().size.min(order.size);
+            let size_matched = top_order.unwrap().quantity().min(order.quantity());
 
-            other_book.peek_mut().unwrap().size -= size_matched;
-            order.size -= size_matched;
+            other_book.peek_mut().unwrap().reduce_quantity(size_matched);
+            order.reduce_quantity(size_matched);
 
             let top_order = other_book.peek().unwrap();
 
-            let (from, to) = match order.side {
-                Side::Sell => (order.creator.clone(), top_order.creator.clone()),
-                Side::Buy => (top_order.creator.clone(), order.creator.clone()),
+            let (from, to) = match order.side() {
+                Side::Sell => (order.uid(), top_order.uid()),
+                Side::Buy => (top_order.uid(), order.uid()),
             };
 
             let t = Trade {
                 from,
                 to,
-                size: size_matched,
-                price: top_order.price,
+                quantity: size_matched,
+                price: top_order.price(),
                 ts,
             };
-            self.trades.push(t);
 
-            if top_order.size == 0 {
+            if top_order.quantity() == 0 {
                 other_book.pop();
             }
         }
 
-        if order.size > 0 {
+        if order.quantity() > 0 && !order.immediate_or_cancel() {
             book.push(order);
         }
-
-        &self.trades[num_transactions..]
     }
 }

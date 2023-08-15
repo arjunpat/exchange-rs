@@ -1,12 +1,14 @@
-use serde::{Deserialize, Serialize};
+use crate::utils;
 use std::{cmp::Ordering, fmt::Display};
+// use serde::{Deserialize, Serialize};
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum Side {
     Buy,
     Sell,
 }
 
+// this assumes all bools are is_buy
 impl From<bool> for Side {
     fn from(b: bool) -> Self {
         if b {
@@ -19,11 +21,68 @@ impl From<bool> for Side {
 
 #[derive(Debug)]
 pub struct Order {
-    pub created_at: u64,
-    pub creator: String,
-    pub size: u32,
-    pub price: u32,
-    pub side: Side,
+    uid: u64,
+    created_at: u64,
+    creator: String,
+    quantity: u32,
+    price: u32,
+    side: Side,
+    all_or_none: bool,
+    immediate_or_cancel: bool,
+}
+
+impl Order {
+    pub fn new_limit(uid: u64, creator: String, quantity: u32, price: u32, side: Side) -> Self {
+        Order {
+            uid,
+            created_at: utils::now(),
+            creator,
+            quantity,
+            price,
+            side,
+            all_or_none: false,
+            immediate_or_cancel: false,
+        }
+    }
+
+    pub fn new_market(uid: u64, creator: String, quantity: u32, side: Side) -> Self {
+        Order::new_limit(uid, creator, quantity, 0, side)
+    }
+
+    pub fn reduce_quantity(&mut self, amt: u32) {
+        if amt > self.quantity {
+            panic!("Trying to reduce order by more than quantity");
+        }
+        self.quantity -= amt;
+    }
+
+    pub fn price(&self) -> u32 {
+        self.price
+    }
+
+    pub fn quantity(&self) -> u32 {
+        self.quantity
+    }
+
+    pub fn side(&self) -> Side {
+        self.side
+    }
+
+    pub fn creator(&self) -> &str {
+        &self.creator
+    }
+
+    pub fn all_or_none(&self) -> bool {
+        self.all_or_none
+    }
+
+    pub fn immediate_or_cancel(&self) -> bool {
+        self.immediate_or_cancel
+    }
+
+    pub fn uid(&self) -> u64 {
+        self.uid
+    }
 }
 
 impl PartialEq for Order {
@@ -61,11 +120,10 @@ impl PartialOrd for Order {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Trade {
-    pub from: String,
-    pub to: String,
-    pub size: u32,
+    pub from: u64,
+    pub to: u64,
+    pub quantity: u32,
     pub price: u32,
     pub ts: u64,
 }
@@ -75,7 +133,7 @@ impl Display for Trade {
         write!(
             f,
             "{} -> {}: {} @ ${}",
-            self.from, self.to, self.size, self.price
+            self.from, self.to, self.quantity, self.price
         )
     }
 }
