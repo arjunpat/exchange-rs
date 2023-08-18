@@ -5,7 +5,6 @@ mod tests;
 pub mod utils;
 
 use std::{
-    cell::Cell,
     collections::{BTreeSet, HashMap},
     fmt::Display,
 };
@@ -14,14 +13,12 @@ struct Chain {
     data: BTreeSet<OrderTracker>,
     depths: HashMap<u32, u32>,
     side: Side,
-    bbo: Cell<Option<u32>>,
-    bbo_handler: Option<fn(Side, Option<u32>)>,
 }
 
 pub struct Book {
     bids: Chain,
     asks: Chain,
-    market_data_handler: Option<Box<dyn Fn(MarketDataEvent)>>,
+    // market_data_handler: Option<Box<dyn Fn(MarketDataEvent)>>,
 }
 
 #[derive(Debug)]
@@ -39,14 +36,16 @@ pub struct Order {
 #[derive(Debug, Clone)]
 struct OrderTracker {
     uid: u64,
-    // created_at is the time when this object is created in the order book
-    // in other words, when we actually receive the order
-    created_at: u64,
+    // ordering starts at 0 and increments throughout the program
+    // for internal use only
+    ordering: u64,
     quantity: u32,
     price: u32,
     side: Side,
 }
 
+// used for internal record keeping
+// not information to share with market
 #[derive(Debug)]
 pub struct Trade {
     pub from: u64,
@@ -56,15 +55,10 @@ pub struct Trade {
     pub ts: u64,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct BBO {
-    price: u32,
-    quantity: u32,
-}
-
-#[derive(Debug)]
-pub enum MarketDataEvent {
-    Trades(Vec<Trade>),
+    pub quantity: u32,
+    pub price: u32,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]

@@ -1,16 +1,19 @@
 use std::{
-    cell::Cell,
     cmp::Ordering,
     collections::{BTreeSet, HashMap},
+    sync::atomic,
 };
 
-use super::{utils, Chain, Order, OrderTracker, Side};
+use super::{Chain, Order, OrderTracker, Side};
+
+static ORDER_TRACKER_COUNTER: atomic::AtomicU64 = atomic::AtomicU64::new(0);
 
 impl OrderTracker {
     pub fn from_order(ord: &Order) -> Self {
+        let ordering = ORDER_TRACKER_COUNTER.fetch_add(1, atomic::Ordering::Relaxed);
         Self {
             uid: ord.uid(),
-            created_at: utils::now(),
+            ordering,
             quantity: ord.quantity(),
             side: ord.side(),
             price: ord.price(),
@@ -21,14 +24,14 @@ impl OrderTracker {
         let first = Self {
             uid: 0,
             price,
-            created_at: 0,
+            ordering: 0,
             quantity: 0,
             side,
         };
         let second = Self {
             uid: 0,
             price,
-            created_at: std::u64::MAX,
+            ordering: std::u64::MAX,
             quantity: 0,
             side,
         };
@@ -54,7 +57,7 @@ impl Ord for OrderTracker {
         }
 
         if self.price == other.price {
-            return self.created_at.cmp(&other.created_at);
+            return self.ordering.cmp(&other.ordering);
         }
 
         let cmp = self.price.cmp(&other.price);
@@ -77,29 +80,6 @@ impl Chain {
             data: BTreeSet::new(),
             depths: HashMap::new(),
             side,
-            bbo: Cell::new(None),
-            bbo_handler: None,
-        }
-    }
-
-    pub fn set_bbo_handler(&mut self, f: fn(Side, Option<u32>)) {
-        self.bbo_handler = Some(f);
-    }
-
-    pub fn bbo(&self) -> Option<u32> {
-        self.bbo.get()
-    }
-
-    fn update_bbo(&self) {
-        let new_bbo = match self.data.first() {
-            Some(ot) => Some(ot.price),
-            None => None,
-        };
-
-        if self.bbo.replace(new_bbo) != new_bbo {
-            if let Some(handler) = self.bbo_handler {
-                handler(self.side, self.bbo.get());
-            }
         }
     }
 
@@ -113,8 +93,6 @@ impl Chain {
         // update state
         *self.depths.get_mut(&ot.price)? -= ot.quantity;
 
-        self.update_bbo();
-
         Some(ot)
     }
 
@@ -125,10 +103,12 @@ impl Chain {
         }
         *self.depths.get_mut(&ot.price).unwrap() += ot.quantity;
 
+        if self.data.contains(&ot) {
+            println!("ALREADY FOUND: {:?} {:?}", ot, self.data.get(&ot));
+            assert!(false);
+        }
+        assert!(!self.data.contains(&ot));
         self.data.insert(ot);
-
-        // update state
-        self.update_bbo();
     }
 
     fn find_and_clone(&self, price: u32, uid: u64) -> Option<OrderTracker> {
@@ -153,7 +133,6 @@ impl Chain {
 
         // update state
         *self.depths.get_mut(&ot_removed.price).unwrap() -= ot_removed.quantity;
-        self.update_bbo();
 
         Some(ot_removed)
     }
