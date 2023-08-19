@@ -13,6 +13,30 @@ fn assert_trades_equal(a: &Vec<Trade>, b: &Vec<Trade>) {
 }
 
 #[test]
+fn test_cancel_orders() {
+    let mut b = Book::new();
+    b.place_limit(&Order::new_limit(0, "David", 1, 100, Side::Buy));
+    b.place_limit(&Order::new_limit(1, "Brain", 5, 100, Side::Buy));
+    b.place_limit(&Order::new_limit(2, "Arjun", 20, 100, Side::Buy));
+    b.place_limit(&Order::new_limit(3, "kevin", 4, 101, Side::Buy));
+    assert_eq!(*b.get_depths().0.get(&100).unwrap(), 26);
+
+    b.place_limit(&Order::new_limit(4, "Andrew", 9, 100, Side::Sell));
+    assert_eq!(*b.get_depths().0.get(&100).unwrap(), 21);
+
+    let ot = b.cancel_order(Side::Buy, 100, 1);
+    assert!(ot.is_some());
+    let ot = ot.unwrap();
+    assert_eq!(ot.quantity, 1);
+    assert_eq!(*b.get_depths().0.get(&100).unwrap(), 20);
+
+    let trades = b.place_limit(&Order::new_limit(5, "Andrew", 1, 100, Side::Sell));
+    assert_eq!(*b.get_depths().0.get(&100).unwrap(), 19);
+    assert_eq!(trades.len(), 1);
+    assert_eq!(trades[0].to, 2);
+}
+
+#[test]
 fn test_place_limit_buy() {
     let mut b = Book::new();
     let mut confirmed_ts = Vec::new();

@@ -25,13 +25,13 @@ impl Book {
         (self.bids.depths.clone(), self.asks.depths.clone())
     }
 
-    pub fn cancel_order(&mut self, ord: &Order) {
-        let book = match ord.side() {
+    pub fn cancel_order(&mut self, side: Side, price: u32, uid: u64) -> Option<OrderTracker> {
+        let book = match side {
             Side::Buy => &mut self.bids,
             Side::Sell => &mut self.asks,
         };
 
-        book.remove(ord.price(), ord.uid());
+        book.remove(price, uid)
     }
 
     // all market orders are assumed to be immediate or cancel

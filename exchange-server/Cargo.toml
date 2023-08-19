@@ -9,6 +9,7 @@ authors = ["Arjun Patrawala <hi@arjunpatrawala.com>"]
 
 [dependencies]
 anyhow = "1.0.72"
+axum = { version = "0.6.20", features = ["headers", "ws"] }
 serde = { version = "1.0.183", features = ["derive"] }
 serde_json = "1.0.104"
-tokio = { version = "1.31.0", features = ["full"] }
+tokio = { version = "1.32.0", features = ["full"] }

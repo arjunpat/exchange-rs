@@ -34,7 +34,7 @@ pub struct Order {
 }
 
 #[derive(Debug, Clone)]
-struct OrderTracker {
+pub struct OrderTracker {
     uid: u64,
     // ordering starts at 0 and increments throughout the program
     // for internal use only
